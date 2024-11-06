@@ -85,6 +85,18 @@ static_assert (AAX_SDK_CURRENT_REVISION >= AAX_SDK_2p4p0_REVISION, "JUCE require
 #include <AAX_Assert.h>
 #include <AAX_TransportTypes.h>
 
+#if JucePlugin_Enable_ARA
+/*
+ * These are non-public files provided by Avid for your ARA Pro Tools implementations.
+ * Do something like `target_include_directories("${PROJECT_NAME}_AAX" PUBLIC "${EXT_LIB_DIR}/aax-sdk-2-7-0/NonPublic")`
+ * to add them to your project.
+ */
+    #include "ARA/ARAAAX.h"
+    #include "ARA/AAX_VARABinding.h"
+    #include "ARA/AAX_VARABinding.cpp"
+    #include "ARA/ARAAAX_UIDs.h"
+#endif
+
 JUCE_END_IGNORE_WARNINGS_MSVC
 JUCE_END_IGNORE_WARNINGS_GCC_LIKE
 
@@ -558,6 +570,25 @@ namespace AAXClasses
 
         void CreateViewContents() override;
 
+        AAX_Result NotificationReceived (AAX_CTypeID type, const void* data, uint32_t size) override
+        {
+            AAX_CEffectGUI::NotificationReceived(type, data, size);
+
+            switch(type)
+            {
+                case AAX_eNotificationEvent_MaxViewSizeChanged:
+                    const auto point = *static_cast<const AAX_Point*> (data);
+                    const auto width = point.horz;
+                    const auto height = point.vert;
+                    if(width > 0 && height > 0 && component && component->pluginEditor)
+                        component->pluginEditor->setSize ((int) std::floor (width), (int) std::floor (height));
+
+                    break;
+            }
+
+            return AAX_SUCCESS;
+        }
+
         void CreateViewContainer() override
         {
             CreateViewContents();
@@ -747,15 +778,14 @@ namespace AAXClasses
 
             bool resizeHostWindow()
             {
-                if (pluginEditor != nullptr)
-                {
-                    auto newSize = convertToHostBounds ({ (float) pluginEditor->getHeight(),
-                                                          (float) pluginEditor->getWidth() });
+                auto viewContainer = owner.GetViewContainer();
+                if (pluginEditor == nullptr || !viewContainer)
+                    return false;
 
-                    return owner.GetViewContainer()->SetViewSize (newSize) == AAX_SUCCESS;
-                }
+                auto newSize = convertToHostBounds ({ (float) pluginEditor->getHeight(),
+                    (float) pluginEditor->getWidth() });
 
-                return false;
+                return viewContainer->SetViewSize (newSize) == AAX_SUCCESS;
             }
 
             std::unique_ptr<AudioProcessorEditor> pluginEditor;
@@ -863,9 +893,19 @@ namespace AAXClasses
             return AAX_CEffectParameters::Uninitialize();
         }
 
+        AAX_Result Initialize(IACFUnknown* iController) override
+        {
+    #if JucePlugin_Enable_ARA
+            mAAXARABinding.reset(new ARA::AAX_VARABinding(iController));
+    #endif
+            return AAX_CEffectParameters::Initialize(iController);
+        }
+
         AAX_Result EffectInit() override
         {
             cancelPendingUpdate();
+            initAra();
+
             check (Controller()->GetSampleRate (&sampleRate));
             processingSidechainChange = false;
             auto err = preparePlugin();
@@ -876,6 +916,36 @@ namespace AAXClasses
             addAudioProcessorParameters();
 
             return AAX_SUCCESS;
+        }
+
+        void initAra()
+        {
+    #if JucePlugin_Enable_ARA
+            AAX_Result result;
+            DBG("init ara");
+
+            auto araExtension = dynamic_cast<juce::AudioProcessorARAExtension*>(pluginInstance.get());
+            if(!araExtension || !mAAXARABinding)
+            {
+                jassertfalse;
+                return;
+            }
+
+            ARA::ARAPlugInInstanceRoleFlags knownRoles = 0;
+            result = mAAXARABinding->GetInstanceRoleFlags(&knownRoles, &mAssignedRoles);
+            if(result != AAX_SUCCESS)
+                return;
+
+            result = mAAXARABinding->GetDocumentController(&mDocumentControllerRef);
+            if(result != AAX_SUCCESS)
+                return;
+
+            auto extensionInstance = araExtension->bindToARA(mDocumentControllerRef, knownRoles, mAssignedRoles);
+            if(!extensionInstance)
+                return;
+
+            mAAXARABinding->SetPlugInExtensionInstance(extensionInstance);
+    #endif
         }
 
         AAX_Result GetNumberOfChunks (int32_t* numChunks) const override
@@ -2242,6 +2312,8 @@ namespace AAXClasses
         ScopedJuceInitialiser_GUI libraryInitialiser;
 
         std::unique_ptr<AudioProcessor> pluginInstance;
+        ARA::ARADocumentControllerRef mDocumentControllerRef;
+        ARA::ARAPlugInInstanceRoleFlags mAssignedRoles;
 
         static constexpr auto maxSamplesPerBlock = 1 << AAX_eAudioBufferLength_Max;
 
@@ -2301,6 +2373,7 @@ namespace AAXClasses
         HashMap<int32, AudioProcessorParameter*> paramMap;
         LegacyAudioParametersWrapper juceParameters;
         std::unique_ptr<AudioProcessorParameter> ownedBypassParameter;
+        std::unique_ptr<ARA::AAX_VARABinding> mAAXARABinding;
 
         Array<AudioProcessorParameter*> aaxMeters;
 
@@ -2556,6 +2629,11 @@ namespace AAXClasses
                 check (desc.AddAuxOutputStem (0, static_cast<int32_t> (auxFormat), name.toRawUTF8()));
             }
         }
+
+    #if JucePlugin_Enable_ARA
+        if(auto araFactory = createARAFactory())
+            properties->AddPointerProperty(ARA::AAX_eProperty_ARAFactoryPointer, araFactory);
+    #endif
 
         check (desc.AddProcessProc_Native (algorithmProcessCallback, properties));
     }
