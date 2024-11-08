@@ -115,6 +115,14 @@ public:
         GUI scale.
     */
     virtual void setScaleFactor (float newScale);
+    /**
+     * Will be called when the host notifies the plugin about a change in the allowed size of the editor.
+     * Right now this is only implemented for AAX.
+     *
+     * @param maxWidth nullopt if the width is not restricted
+     * @param newHeight nullopt if the height is not restricted
+     */
+    virtual void allowedSizeChanged (std::optional<int> maxWidth, std::optional<int> newHeight) {}
 
     //==============================================================================
     /** Sets whether the editor is resizable by the host and/or user.

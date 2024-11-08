@@ -578,10 +578,10 @@ namespace AAXClasses
             {
                 case AAX_eNotificationEvent_MaxViewSizeChanged:
                     const auto point = *static_cast<const AAX_Point*> (data);
-                    const auto width = point.horz;
-                    const auto height = point.vert;
+                    const auto width = (int) std::floor (point.horz);
+                    const auto height = (int) std::floor (point.vert);
                     if(width > 0 && height > 0 && component && component->pluginEditor)
-                        component->pluginEditor->setSize ((int) std::floor (width), (int) std::floor (height));
+                        component->pluginEditor->allowedSizeChanged(width, height);
 
                     break;
             }
@@ -712,8 +712,7 @@ namespace AAXClasses
 
                 if (pluginEditor != nullptr)
                 {
-                    lastValidSize = pluginEditor->getLocalBounds();
-                    setBounds (lastValidSize);
+                    setBounds (pluginEditor->getLocalBounds());
                     pluginEditor->addMouseListener (this, true);
                 }
             }
@@ -767,12 +766,10 @@ namespace AAXClasses
                 if (resizeHostWindow())
                 {
                     setSize (pluginEditor->getWidth(), pluginEditor->getHeight());
-                    lastValidSize = getBounds();
                 }
                 else
                 {
-                    pluginEditor->setBoundsConstrained (pluginEditor->getBounds().withSize (lastValidSize.getWidth(),
-                                                                                            lastValidSize.getHeight()));
+                    pluginEditor->setBoundsConstrained (pluginEditor->getBounds());
                 }
             }
 
@@ -794,7 +791,6 @@ namespace AAXClasses
            #if JUCE_WINDOWS
             detail::WindowsHooks hooks;
            #endif
-            juce::Rectangle<int> lastValidSize;
 
             JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ContentWrapperComponent)
         };
@@ -922,7 +918,6 @@ namespace AAXClasses
         {
     #if JucePlugin_Enable_ARA
             AAX_Result result;
-            DBG("init ara");
 
             auto araExtension = dynamic_cast<juce::AudioProcessorARAExtension*>(pluginInstance.get());
             if(!araExtension || !mAAXARABinding)
@@ -945,6 +940,7 @@ namespace AAXClasses
                 return;
 
             mAAXARABinding->SetPlugInExtensionInstance(extensionInstance);
+            DBG("AAX ARA instance initialised");
     #endif
         }
 
