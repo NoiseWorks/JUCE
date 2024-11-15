@@ -95,6 +95,7 @@ static_assert (AAX_SDK_CURRENT_REVISION >= AAX_SDK_2p4p0_REVISION, "JUCE require
     #include "ARA/AAX_VARABinding.h"
     #include "ARA/AAX_VARABinding.cpp"
     #include "ARA/ARAAAX_UIDs.h"
+    #include <AAX_CHostProcessor.h>
 #endif
 
 JUCE_END_IGNORE_WARNINGS_MSVC
@@ -2393,6 +2394,20 @@ namespace AAXClasses
         JUCE_DECLARE_NON_COPYABLE (JuceAAX_Processor)
     };
 
+    class JuceAAX_CHostProcessor : public AAX_CHostProcessor
+    {
+    public:
+        AAX_Result RenderAudio (const float * const inAudioIns [], int32_t inAudioInCount, float * const inAudioOuts [], int32_t inAudioOutCount, int32_t * ioWindowSize) override
+        {
+            return AAX_SUCCESS;
+        }
+
+        static AAX_CHostProcessor* AAX_CALLBACK Create()
+        {
+            return new JuceAAX_CHostProcessor();
+        }
+    };
+
     //==============================================================================
     void JuceAAX_GUI::CreateViewContents()
     {
@@ -2564,7 +2579,7 @@ namespace AAXClasses
 
         properties->AddProperty (AAX_eProperty_PlugInID_Native, pluginID);
 
-       #if ! JucePlugin_AAXDisableAudioSuite
+       #if ! JucePlugin_AAXDisableAudioSuite && ! JucePlugin_Enable_ARA
         properties->AddProperty (AAX_eProperty_PlugInID_AudioSuite,
                                  extensions.getPluginIDForMainBusConfig (fullLayout.getMainInputChannelSet(),
                                                                          fullLayout.getMainOutputChannelSet(),
@@ -2629,6 +2644,8 @@ namespace AAXClasses
     #if JucePlugin_Enable_ARA
         if(auto araFactory = createARAFactory())
             properties->AddPointerProperty(ARA::AAX_eProperty_ARAFactoryPointer, araFactory);
+
+        check(properties->AddProperty( AAX_eProperty_ShowInMenus, false ));
     #endif
 
         check (desc.AddProcessProc_Native (algorithmProcessCallback, properties));
@@ -2687,6 +2704,7 @@ namespace AAXClasses
 
         check (descriptor.AddProcPtr ((void*) JuceAAX_GUI::Create,        kAAX_ProcPtrID_Create_EffectGUI));
         check (descriptor.AddProcPtr ((void*) JuceAAX_Processor::Create,  kAAX_ProcPtrID_Create_EffectParameters));
+        check(descriptor.AddProcPtr((void*) JuceAAX_CHostProcessor::Create, kAAX_ProcPtrID_Create_HostProcessor));
 
         Array<int32> pluginIds;
        #if JucePlugin_IsMidiEffect
