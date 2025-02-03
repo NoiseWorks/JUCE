@@ -26,6 +26,42 @@
 namespace juce
 {
 
+    void validateStackTrace()
+    {
+#ifndef JUCE_DEBUG
+        return;
+#endif
+
+        const auto backtrace = SystemStats::getStackBacktrace();
+        StringArray validMethods {
+            "doCreateAudioSource",
+            "doDestroyAudioSource",
+            "willUpdateAudioSourceProperties",
+            "didUpdateAudioSourceProperties",
+            "doUpdateAudioSourceContent",
+            "willEnableAudioSourceSamplesAccess",
+            "didEnableAudioSourceSamplesAccess",
+            "willDeactivateAudioSourceForUndoHistory",
+            "didDeactivateAudioSourceForUndoHistory",
+            "didAddAudioModificationToAudioSource",
+            "willRemoveAudioModificationFromAudioSource",
+            "willDestroyAudioSource",
+            "didEndEditing"
+        };
+
+        for (const auto& method : validMethods)
+        {
+            if(backtrace.contains(method))
+                return;
+        }
+
+        /*
+         * The ARA::PlugIn::HostAudioReader (hostReader member) can only be created or destroyed during audio source management hooks in the document controller.
+         * It wraps ARAAudioAccessControllerInterface, so see ARAAudioAccessControllerInterface::createAudioReaderForSource and ARAAudioAccessControllerInterface::destroyAudioReader for documentation.
+         */
+        jassertfalse;
+    }
+
 ARAAudioSourceReader::ARAAudioSourceReader (ARAAudioSource* audioSource)
     : AudioFormatReader (nullptr, "ARAAudioSourceReader"),
       audioSourceBeingRead (audioSource)
@@ -41,6 +77,7 @@ ARAAudioSourceReader::ARAAudioSourceReader (ARAAudioSource* audioSource)
 
     audioSourceBeingRead->addListener (this);
 
+    validateStackTrace();
     if (audioSourceBeingRead->isSampleAccessEnabled())
         hostReader.reset (new ARA::PlugIn::HostAudioReader (audioSourceBeingRead));
 }
@@ -52,6 +89,7 @@ ARAAudioSourceReader::~ARAAudioSourceReader()
 
 void ARAAudioSourceReader::invalidate()
 {
+    validateStackTrace();
     ScopedWriteLock scopedLock (lock);
 
     if (! isValid())
