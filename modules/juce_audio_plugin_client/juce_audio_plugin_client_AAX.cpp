@@ -2282,8 +2282,10 @@ namespace AAXClasses
         ScopedJuceInitialiser_GUI libraryInitialiser;
 
         std::unique_ptr<AudioProcessor> pluginInstance;
+#if JucePlugin_Enable_ARA
         ARA::ARADocumentControllerRef mDocumentControllerRef;
         ARA::ARAPlugInInstanceRoleFlags mAssignedRoles;
+#endif
 
         static constexpr auto maxSamplesPerBlock = 1 << AAX_eAudioBufferLength_Max;
 
@@ -2346,7 +2348,10 @@ namespace AAXClasses
         HashMap<int32, AudioProcessorParameter*> paramMap;
         LegacyAudioParametersWrapper juceParameters;
         std::unique_ptr<AudioProcessorParameter> ownedBypassParameter;
+
+#if JucePlugin_Enable_ARA
         std::unique_ptr<ARA::AAX_VARABinding> mAAXARABinding;
+#endif
 
         Array<AudioProcessorParameter*> aaxMeters;
 
@@ -2368,20 +2373,6 @@ namespace AAXClasses
         ThreadLocalValue<bool> inParameterChangedCallback;
 
         JUCE_DECLARE_NON_COPYABLE (JuceAAX_Processor)
-    };
-
-    class JuceAAX_CHostProcessor : public AAX_CHostProcessor
-    {
-    public:
-        AAX_Result RenderAudio (const float * const inAudioIns [], int32_t inAudioInCount, float * const inAudioOuts [], int32_t inAudioOutCount, int32_t * ioWindowSize) override
-        {
-            return AAX_SUCCESS;
-        }
-
-        static AAX_CHostProcessor* AAX_CALLBACK Create()
-        {
-            return new JuceAAX_CHostProcessor();
-        }
     };
 
     //==============================================================================
@@ -2656,7 +2647,6 @@ namespace AAXClasses
 
         check (descriptor.AddProcPtr ((void*) JuceAAX_GUI::Create,        kAAX_ProcPtrID_Create_EffectGUI));
         check (descriptor.AddProcPtr ((void*) JuceAAX_Processor::Create,  kAAX_ProcPtrID_Create_EffectParameters));
-        check(descriptor.AddProcPtr((void*) JuceAAX_CHostProcessor::Create, kAAX_ProcPtrID_Create_HostProcessor));
 
         Array<int32> pluginIds;
 
