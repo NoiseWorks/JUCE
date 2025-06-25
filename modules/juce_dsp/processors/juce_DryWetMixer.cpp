@@ -95,8 +95,8 @@ void DryWetMixer<SampleType>::prepare (const ProcessSpec& spec)
 template <typename SampleType>
 void DryWetMixer<SampleType>::reset()
 {
-    dryVolume.reset (sampleRate, 0.05);
-    wetVolume.reset (sampleRate, 0.05);
+    dryVolume.reset (sampleRate, transitionTimeInSeconds);
+    wetVolume.reset (sampleRate, transitionTimeInSeconds);
 
     dryDelayLine.reset();
 
@@ -153,6 +153,21 @@ void DryWetMixer<SampleType>::mixWetSamples (AudioBlock<SampleType> inOutBlock)
 
         offset += range.getLength();
     }
+}
+
+template <typename SampleType>
+void DryWetMixer<SampleType>::setTransitionTimeInSeconds(double value)
+{
+    jassert (value > 0);
+    transitionTimeInSeconds = value;
+
+    reset();
+}
+
+template <typename SampleType>
+double DryWetMixer<SampleType>::getTransitionTimeInSeconds() const
+{
+    return transitionTimeInSeconds;
 }
 
 //==============================================================================

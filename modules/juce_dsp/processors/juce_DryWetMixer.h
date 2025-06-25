@@ -107,6 +107,18 @@ public:
     */
     void mixWetSamples (AudioBlock<SampleType> wetSamples);
 
+    /** Sets the transition time in second of the mixer:
+        how long it takes for the dry and wet volumes to smoothly interpolate to their new values.
+
+        @param value  The transition time in seconds.
+    */
+    void setTransitionTimeInSeconds(double value);
+
+    /** Returns the current transition time in seconds.
+    */
+    double getTransitionTimeInSeconds() const;
+
+
 private:
     //==============================================================================
     void update();
@@ -121,6 +133,7 @@ private:
     MixingRule currentMixingRule = MixingRule::linear;
     double sampleRate = 44100.0;
     int maximumWetLatencyInSamples = 0;
+    double transitionTimeInSeconds = 0.05;
 };
 
 } // namespace juce::dsp
