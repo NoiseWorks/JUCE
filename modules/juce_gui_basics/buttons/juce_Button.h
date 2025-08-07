@@ -429,7 +429,18 @@ public:
    #ifndef DOXYGEN
     [[deprecated ("This method's parameters have changed.")]]
     void setToggleState (bool, bool);
-   #endif
+    #endif
+
+    /** @internal */
+    void mouseEnter (const MouseEvent&) override;
+    /** @internal */
+    void mouseExit (const MouseEvent&) override;
+    /** @internal */
+    void mouseDown (const MouseEvent&) override;
+    /** @internal */
+    void mouseDrag (const MouseEvent&) override;
+    /** @internal */
+    void mouseUp (const MouseEvent&) override;
 
 protected:
     //==============================================================================
@@ -478,16 +489,6 @@ protected:
     virtual void internalClickCallback (const ModifierKeys&);
     /** @internal */
     void handleCommandMessage (int commandId) override;
-    /** @internal */
-    void mouseEnter (const MouseEvent&) override;
-    /** @internal */
-    void mouseExit (const MouseEvent&) override;
-    /** @internal */
-    void mouseDown (const MouseEvent&) override;
-    /** @internal */
-    void mouseDrag (const MouseEvent&) override;
-    /** @internal */
-    void mouseUp (const MouseEvent&) override;
     /** @internal */
     bool keyPressed (const KeyPress&) override;
     /** @internal */
