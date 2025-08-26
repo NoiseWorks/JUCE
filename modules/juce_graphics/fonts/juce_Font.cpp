@@ -220,7 +220,7 @@ public:
         const ScopedLock lock (mutex);
 
         if (auto ptr = getTypefacePtr (f))
-            return ptr->getNativeDetails().getFontAtSizeAndScale (f.getMetricsKind(), f.getHeight(), f.getHorizontalScale());
+            return ptr->getNativeDetails().getFontAtPointSizeAndScale (f.getHeightInPoints(), f.getHorizontalScale(), f.getVariations());
 
         return {};
     }
@@ -231,6 +231,23 @@ public:
 
         if (auto ptr = getTypefacePtr (f))
             return ptr->getMetrics (f.getMetricsKind());
+
+        return {};
+    }
+
+    TypefaceAscentDescent getAscentDescent (const Font& f)
+    {
+        const ScopedLock lock (mutex);
+
+        if (auto ptr = getTypefacePtr (f))
+        {
+            const auto ascentDescent = ptr->getNativeDetails().getAscentDescent (f.getMetricsKind());
+
+            auto adjusted = ascentDescent;
+            adjusted.ascent = getAscentOverride().value_or (adjusted.ascent);
+            adjusted.descent = getDescentOverride().value_or (adjusted.descent);
+            return adjusted;
+        }
 
         return {};
     }
@@ -261,6 +278,10 @@ public:
     bool getUnderline() const                  { return options.getUnderline(); }
     bool getFallbackEnabled() const            { return options.getFallbackEnabled(); }
     TypefaceMetricsKind getMetricsKind() const { return options.getMetricsKind(); }
+
+    std::optional<float> getAscentOverride() const  { return options.getAscentOverride(); }
+    std::optional<float> getDescentOverride() const { return options.getDescentOverride(); }
+    std::vector<FontVariation> getVariations() const { return options.getVariations(); }
 
     /*  This shared state may be shared between two or more Font instances that are being
         read/modified from multiple threads.
@@ -314,6 +335,18 @@ public:
     {
         jassert (getReferenceCount() == 1);
         options = options.withKerningFactor (x);
+    }
+
+    void setAscentOverride (std::optional<float> x)
+    {
+        jassert (getReferenceCount() == 1);
+        options = options.withAscentOverride (x);
+    }
+
+    void setDescentOverride (std::optional<float> x)
+    {
+        jassert (getReferenceCount() == 1);
+        options = options.withDescentOverride (x);
     }
 
     void setUnderline (bool x)
@@ -544,7 +577,7 @@ Font Font::withHeight (const float newHeight) const
 
 float Font::getHeightToPointsFactor() const
 {
-    return getTypefacePtr()->getMetrics (getMetricsKind()).heightToPoints;
+    return font->getAscentDescent (*this).getHeightToPointsFactor();
 }
 
 Font Font::withPointHeight (float heightInPoints) const
@@ -699,6 +732,31 @@ void Font::setExtraKerningFactor (const float extraKerning)
     font->resetTypeface();
 }
 
+std::optional<float> Font::getAscentOverride() const noexcept
+{
+    return font->getAscentOverride();
+}
+
+void Font::setAscentOverride (std::optional<float> x)
+{
+    font->setAscentOverride (x);
+}
+
+std::optional<float> Font::getDescentOverride() const noexcept
+{
+    return font->getDescentOverride();
+}
+
+void Font::setDescentOverride (std::optional<float> x)
+{
+    font->setDescentOverride (x);
+}
+
+std::vector<FontVariation> Font::getVariations() const
+{
+    return font->getVariations();
+}
+
 Font Font::boldened() const                 { return withStyle (getStyleFlags() | bold); }
 Font Font::italicised() const               { return withStyle (getStyleFlags() | italic); }
 
@@ -731,14 +789,14 @@ void Font::setUnderline (const bool shouldBeUnderlined)
 
 float Font::getAscent() const
 {
-    return font->getMetrics (*this).ascent * getHeight();
+    return font->getAscentDescent (*this).getScaledAscent() * getHeight();
 }
 
 float Font::getHeight() const noexcept
 {
     jassert ((font->getHeight() > 0.0f) != (font->getPointHeight() > 0.0f));
     const auto height = font->getHeight();
-    return height > 0.0f ? height : font->getPointHeight() / getHeightToPointsFactor();
+    return height > 0.0f ? height : font->getPointHeight() * font->getAscentDescent (*this).getPointsToHeightFactor();
 }
 
 float Font::getDescent() const              { return getHeight() - getAscent(); }
@@ -747,11 +805,21 @@ float Font::getHeightInPoints() const
 {
     jassert ((font->getHeight() > 0.0f) != (font->getPointHeight() > 0.0f));
     const auto pointHeight = font->getPointHeight();
-    return pointHeight > 0.0f ? pointHeight : font->getHeight() * getHeightToPointsFactor();
+
+    if (pointHeight > 0.0f)
+        return pointHeight;
+
+    const auto factor = font->getAscentDescent (*this).getPointsToHeightFactor();
+
+    if (factor > 0.0f)
+        return font->getHeight() / factor;
+
+    jassertfalse;
+    return 0.0f;
 }
 
-float Font::getAscentInPoints() const       { return getAscent()  * getHeightToPointsFactor(); }
-float Font::getDescentInPoints() const      { return getDescent() * getHeightToPointsFactor(); }
+float Font::getAscentInPoints() const       { return font->getAscentDescent (*this).ascent  * getHeightInPoints(); }
+float Font::getDescentInPoints() const      { return font->getAscentDescent (*this).descent * getHeightInPoints(); }
 
 int Font::getStringWidth (const String& text) const
 {
@@ -1024,6 +1092,33 @@ public:
             auto c = b.withTypeface (nullptr).withName ("name").withStyle ("style");
             expect (c.getName() == "name");
             expect (c.getStyle() == "style");
+        }
+
+        beginTest ("FontOptions with variations");
+        {
+            const auto opt = FontOptions().withHeight (20.0f);
+            const auto variations = std::vector<FontVariation>
+            {
+                { FontVariation::Tag ("wght"), 700.0f },
+                { FontVariation::Tag ("wdth"), 100.0f }
+            };
+
+            const auto optWithVariations = opt.withVariations (variations);
+            expect (optWithVariations.getVariations() == variations);
+
+            // Test single variation addition using string
+            const auto optWithSingle = opt.withVariation (FontVariation::Tag ("ital"), 1.0f);
+            expect (optWithSingle.getVariations().size() == 1);
+            expect (optWithSingle.getVariations()[0].tag == FontVariation::Tag ("ital"));
+            expect (optWithSingle.getVariations()[0].value == 1.0f);
+
+            // Test variation replacement
+            const auto optReplaced = optWithSingle.withVariation (FontVariation::Tag ("ital"), 0.5f);
+            expect (optReplaced.getVariations().size() == 1);
+            expect (optReplaced.getVariations()[0].value == 0.5f);
+
+            // Test string conversion
+            expect (optWithSingle.getVariations()[0].tag.toString() == "ital");
         }
     }
 };
