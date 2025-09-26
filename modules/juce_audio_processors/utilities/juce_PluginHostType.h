@@ -83,6 +83,7 @@ public:
         FinalCut,                   /**< Represents Apple Final Cut Pro. */
         FruityLoops,                /**< Represents Fruity Loops. */
         JUCEPluginHost,             /**< Represents the JUCE AudioPluginHost */
+        Luna,                       /**< Represents Universal audio's Luna DAW. */
         MagixSamplitude,            /**< Represents Magix Samplitude. */
         MagixSequoia,               /**< Represents Magix Sequoia. */
         MergingPyramix,             /**< Represents Merging Pyramix. */
@@ -215,6 +216,8 @@ public:
     bool isWavelabLegacy() const noexcept     { return type == SteinbergWavelab5 || type == SteinbergWavelab6; }
     /** Returns true if the host is Native Instruments Maschine. */
     bool isMaschine() const noexcept          { return type == Maschine; }
+    /** Returns true if the host is Universal Audio's Luna DAW. */
+    bool isLuna() const noexcept              { return type == Luna; }
 
     //==============================================================================
     /** Returns a human-readable description of the host. */

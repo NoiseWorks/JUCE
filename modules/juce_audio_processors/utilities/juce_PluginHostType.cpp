@@ -227,6 +227,7 @@ PluginHostType::HostType PluginHostType::getHostType()
     if (hostFilename.containsIgnoreCase   ("Vienna Ensemble Pro"))      return ViennaEnsemblePro;
     if (hostFilename.containsIgnoreCase   ("auvaltool"))                return AUVal;
     if (hostFilename.containsIgnoreCase   ("com.apple.audio.infohelper")) return AppleInfoHelper;
+    if (hostFilename.containsIgnoreCase   ("Luna"))                     return Luna;
 
     if (hostIdReportedByWrapper == "com.apple.logic.pro")               return AppleLogic;
     if (hostIdReportedByWrapper == "com.apple.garageband")              return AppleGarageBand;
