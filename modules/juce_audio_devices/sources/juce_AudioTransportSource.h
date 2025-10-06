@@ -128,8 +128,11 @@ public:
 
         If it's actually playing, this will send a message to any ChangeListeners
         that are registered with this object.
+
+        @param notifyListeners Will block for up to a second to wait for the playback state update from the audio processing thread, before notifying listeners.
+        Set this to false to avoid blocking.
     */
-    void stop();
+    void stop(bool notifyListeners = true);
 
     /** Returns true if it's currently playing. */
     bool isPlaying() const noexcept     { return playing; }

@@ -130,18 +130,20 @@ void AudioTransportSource::start()
     }
 }
 
-void AudioTransportSource::stop()
+void AudioTransportSource::stop(bool notifyListeners)
 {
-    if (playing)
-    {
-        playing = false;
+    if (!playing)
+        return;
 
-        int n = 500;
-        while (--n >= 0 && ! stopped)
-            Thread::sleep (2);
+    playing = false;
+    if (!notifyListeners)
+        return;
 
-        sendChangeMessage();
-    }
+    int n = 500;
+    while (--n >= 0 && ! stopped)
+        Thread::sleep (2);
+
+    sendChangeMessage();
 }
 
 void AudioTransportSource::setPosition (double newPosition)
