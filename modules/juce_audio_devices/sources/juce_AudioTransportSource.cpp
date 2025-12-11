@@ -139,10 +139,6 @@ void AudioTransportSource::stop(bool notifyListeners)
     if (!notifyListeners)
         return;
 
-    int n = 500;
-    while (--n >= 0 && ! stopped)
-        Thread::sleep (2);
-
     sendChangeMessage();
 }
 
