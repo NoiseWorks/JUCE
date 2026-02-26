@@ -433,26 +433,78 @@ public:
     ActiveProcess (const String& command, int streamFlags)
         : ok (false), readPipe (nullptr), writePipe (nullptr)
     {
-        SECURITY_ATTRIBUTES securityAtts = {};
-        securityAtts.nLength = sizeof (securityAtts);
-        securityAtts.bInheritHandle = TRUE;
+        const bool captureOutput = (streamFlags & (wantStdOut | wantStdErr)) != 0;
 
-        if (CreatePipe (&readPipe, &writePipe, &securityAtts, 0)
-             && SetHandleInformation (readPipe, HANDLE_FLAG_INHERIT, 0))
+        if (captureOutput)
         {
-            STARTUPINFOW startupInfo = {};
-            startupInfo.cb = sizeof (startupInfo);
+            SECURITY_ATTRIBUTES securityAtts = {};
+            securityAtts.nLength        = sizeof (securityAtts);
+            securityAtts.bInheritHandle = TRUE;
 
-            startupInfo.hStdOutput = (streamFlags & wantStdOut) != 0 ? writePipe : nullptr;
-            startupInfo.hStdError  = (streamFlags & wantStdErr) != 0 ? writePipe : nullptr;
-            startupInfo.dwFlags = STARTF_USESTDHANDLES;
+            if (! CreatePipe (&readPipe, &writePipe, &securityAtts, 0))
+                return;
 
-            JUCE_BEGIN_IGNORE_WARNINGS_MSVC (6335)
-            ok = CreateProcess (nullptr, const_cast<LPWSTR> (command.toWideCharPointer()),
-                                nullptr, nullptr, TRUE, CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT,
-                                nullptr, nullptr, &startupInfo, &processInfo) != FALSE;
-            JUCE_END_IGNORE_WARNINGS_MSVC
+            if (! SetHandleInformation (readPipe, HANDLE_FLAG_INHERIT, 0))
+                return;
         }
+
+        // Build a thread attribute list with only writePipe (if any) so that
+        // no other handles from the DAW host process leak into the child.
+        SIZE_T attrListSize = 0;
+        InitializeProcThreadAttributeList (nullptr, 1, 0, &attrListSize);
+        auto* attrList = static_cast<LPPROC_THREAD_ATTRIBUTE_LIST> (HeapAlloc (GetProcessHeap(), 0, attrListSize));
+
+        if (attrList == nullptr)
+            return;
+
+        if (! InitializeProcThreadAttributeList (attrList, 1, 0, &attrListSize))
+        {
+            HeapFree (GetProcessHeap(), 0, attrList);
+            return;
+        }
+
+        if (captureOutput)
+        {
+            // Inherit only writePipe — no other handle from the parent leaks into the child.
+            if (! UpdateProcThreadAttribute (attrList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+                                             &writePipe, sizeof (HANDLE), nullptr, nullptr))
+            {
+                DeleteProcThreadAttributeList (attrList);
+                HeapFree (GetProcessHeap(), 0, attrList);
+                return;
+            }
+        }
+
+        STARTUPINFOEXW startupInfoEx  = {};
+        startupInfoEx.StartupInfo.cb  = sizeof (startupInfoEx);
+        startupInfoEx.lpAttributeList = attrList;
+
+        if (captureOutput)
+        {
+            startupInfoEx.StartupInfo.hStdOutput = (streamFlags & wantStdOut) != 0 ? writePipe : nullptr;
+            startupInfoEx.StartupInfo.hStdError  = (streamFlags & wantStdErr) != 0 ? writePipe : nullptr;
+            startupInfoEx.StartupInfo.dwFlags    = STARTF_USESTDHANDLES;
+        }
+
+        const DWORD creationFlags = CREATE_NO_WINDOW
+                                    | CREATE_UNICODE_ENVIRONMENT
+                                    | EXTENDED_STARTUPINFO_PRESENT;
+
+        JUCE_BEGIN_IGNORE_WARNINGS_MSVC (6335)
+        ok = CreateProcess (nullptr,
+                            const_cast<LPWSTR> (command.toWideCharPointer()),
+                            nullptr,
+                            nullptr,
+                            captureOutput ? TRUE : FALSE,  // bInheritHandles
+                            creationFlags,
+                            nullptr,
+                            nullptr,
+                            &startupInfoEx.StartupInfo,
+                            &processInfo) != FALSE;
+        JUCE_END_IGNORE_WARNINGS_MSVC
+
+        DeleteProcThreadAttributeList (attrList);
+        HeapFree (GetProcessHeap(), 0, attrList);
     }
 
     ~ActiveProcess()
