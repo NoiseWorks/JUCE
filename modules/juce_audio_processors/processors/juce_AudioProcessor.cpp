@@ -335,6 +335,13 @@ void AudioProcessor::setPlayHead (AudioPlayHead* newPlayHead)
     playHead = newPlayHead;
 }
 
+#if RANDOM_AUDIO_ACCESS_SUPPORTED
+void AudioProcessor::setRandomAudioReader (AudioFormatReader* const newAudioFormatReader)
+{
+    randomAudioReader = newAudioFormatReader;
+}
+#endif
+
 void AudioProcessor::addListener (AudioProcessorListener* newListener)
 {
     const ScopedLock sl (listenerLock);
@@ -604,6 +611,44 @@ void AudioProcessor::processBypassed (AudioBuffer<floatType>& buffer, MidiBuffer
 
 void AudioProcessor::processBlockBypassed (AudioBuffer<float>&  buffer, MidiBuffer& midi)    { processBypassed (buffer, midi); }
 void AudioProcessor::processBlockBypassed (AudioBuffer<double>& buffer, MidiBuffer& midi)    { processBypassed (buffer, midi); }
+
+void AudioProcessor::analyseBlock (const AudioBuffer<float>& buffer)
+{
+    ignoreUnused (buffer);
+    // If you hit this assertion then you've got analysis called but you haven't implement required callbacks.
+    jassertfalse;
+}
+
+void AudioProcessor::analyseBlock (const AudioBuffer<double>& buffer)
+{
+    ignoreUnused (buffer);
+
+    // If you hit this assertion then either the caller called the double
+    // precision version of analyseBlock on a processor which does not support it
+    // (i.e. supportsDoublePrecisionProcessing() returns false), or the implementation
+    // of the AudioProcessor forgot to override the double precision version of this method
+    jassertfalse;
+}
+
+void AudioProcessor::prepareToAnalyse (double sampleRate, int maximumExpectedSamplesPerBlock, int numOfExpectedInputs)
+{
+    ignoreUnused (sampleRate, maximumExpectedSamplesPerBlock, numOfExpectedInputs);
+    // If you hit this assertion then you've got analysis called but you haven't implement required callbacks.
+    jassertfalse;
+}
+
+#if JucePlugin_EnhancedAudioSuite
+void AudioProcessor::getOfflineRenderOffset (int& startOffset, int& endOffset)
+{
+    startOffset = endOffset = 0;
+}
+#endif
+
+void AudioProcessor::analysisFinished ()
+{
+    // If you hit this assertion then you've got analysis called but you haven't implement required callbacks.
+    jassertfalse;
+}
 
 void AudioProcessor::processBlock ([[maybe_unused]] AudioBuffer<double>& buffer,
                                    [[maybe_unused]] MidiBuffer& midiMessages)
@@ -1211,6 +1256,7 @@ const char* AudioProcessor::getWrapperTypeDescription (AudioProcessor::WrapperTy
         case AudioProcessor::wrapperType_AudioUnit:     return "AU";
         case AudioProcessor::wrapperType_AudioUnitv3:   return "AUv3";
         case AudioProcessor::wrapperType_AAX:           return "AAX";
+        case AudioProcessor::wrapperType_AudioSuite:    return "AudioSuite";
         case AudioProcessor::wrapperType_Standalone:    return "Standalone";
         case AudioProcessor::wrapperType_Unity:         return "Unity";
         case AudioProcessor::wrapperType_LV2:           return "LV2";

@@ -35,6 +35,8 @@
 namespace juce
 {
 
+class AudioFormatReader;
+
 //==============================================================================
 /**
     Base class for audio processing classes or plugins.
@@ -312,6 +314,56 @@ public:
     */
     virtual void processBlockBypassed (AudioBuffer<double>& buffer,
                                        MidiBuffer& midiMessages);
+
+    /** Analyses the next block before actual process.
+
+        For offline processing (currently Pro Tools AudioSuite) this basically pass input buffers.
+        You can use those buffers to do analysis before doing the actual process.
+     */
+    virtual void analyseBlock (const AudioBuffer<float>& buffer);
+
+    /** Analyses the next block before actual process.
+
+        For offline processing (currently Pro Tools AudioSuite) this basically pass input buffers.
+        You can use those buffers to do analysis before doing the actual process.
+     */
+    virtual void analyseBlock (const AudioBuffer<double>& buffer);
+
+    /** Notifies AudioProcessor that analysis is about to start.
+
+        For offline processing (currently Pro Tools AudioSuite), being called before analysis.
+        Note: when side-chain is connected this would be the maximum number of supported tracks.
+     */
+    virtual void prepareToAnalyse (double sampleRate, int samplesPerBlock, int numOfExpectedInputs);
+
+    /** Notifies AudioProcessor that analysis has finished.
+
+        For offline processing (currently Pro Tools AudioSuite), being called after analyse stage finished.
+     */
+    virtual void analysisFinished ();
+
+#if JucePlugin_EnhancedAudioSuite
+    /** Allows aborting plug-in load due to license failure instead of crashing. */
+    virtual bool isAuthorized() { return true; }
+
+    /** Called by AudioSuite to add offsets to processed clip.
+
+        The offsets will then be communicated by the plugin to the host
+        to adjust the final audio position. This allows for example to
+        extend the audio output clip beyond the original selection.
+        - After the user makes a new data selection on the timeline.
+     */
+    virtual void getOfflineRenderOffset (int& startOffset, int& endOffset);
+
+    struct EnhancedAudioSuiteInterface
+    {
+        virtual ~EnhancedAudioSuiteInterface() {}
+        virtual void requestAnalysis() = 0;
+        virtual void requestRender() = 0;
+    };
+
+    EnhancedAudioSuiteInterface* enhancedAudioSuiteInterface {nullptr};
+#endif
 
 
     //==============================================================================
@@ -735,6 +787,21 @@ public:
         If the host can't or won't provide any time info, this will return nullptr.
     */
     AudioPlayHead* getPlayHead() const noexcept                 { return playHead; }
+
+    /** Returns the current AudioFormatReader object that should allow random access
+        to processed audio (if supported).
+
+     You can ONLY call this from your analyseBlock() / processBlock() method!
+     Calling it at other times will produce undefined behaviour.
+
+     The AudioFormatReader object that is returned can be used to get current
+     audio in a random access manner.
+
+     If the host can't or won't provide any time info, this will return nullptr.
+     */
+#if RANDOM_AUDIO_ACCESS_SUPPORTED
+    AudioFormatReader* getRandomAudioReader() const noexcept { return randomAudioReader; }
+#endif
 
     //==============================================================================
     /** Returns the total number of input channels.
@@ -1197,6 +1264,15 @@ public:
     virtual void setPlayHead (AudioPlayHead* newPlayHead);
 
     //==============================================================================
+    /** Tells the processor to use this AudioFormatReader object.
+     The processor will not take ownership of the object, so the caller must delete it when
+     it is no longer being used.
+     */
+#if RANDOM_AUDIO_ACCESS_SUPPORTED
+    virtual void setRandomAudioReader (AudioFormatReader* newRandomAudioMapper);
+#endif
+
+    //==============================================================================
     /** This is called by the processor to specify its details before being played. Use this
         version of the function if you are not interested in any sidechain and/or aux buses
         and do not care about the layout of channels. Otherwise use setRateAndBufferSizeDetails.*/
@@ -1287,6 +1363,7 @@ public:
         wrapperType_AudioUnit,
         wrapperType_AudioUnitv3,
         wrapperType_AAX,
+        wrapperType_AudioSuite,
         wrapperType_Standalone,
         wrapperType_Unity,
         wrapperType_LV2
@@ -1475,6 +1552,11 @@ protected:
     //==============================================================================
     /** @internal */
     std::atomic<AudioPlayHead*> playHead { nullptr };
+
+#if RANDOM_AUDIO_ACCESS_SUPPORTED
+    /** @internal */
+    AudioFormatReader* randomAudioReader = nullptr;
+#endif
 
     /** @internal */
     void sendParamChangeMessageToListeners (int parameterIndex, float newValue);
