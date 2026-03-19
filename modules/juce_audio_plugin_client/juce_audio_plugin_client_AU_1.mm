@@ -1278,7 +1278,7 @@ public:
 
             const auto setTimeInSamples = [&] (auto timeInSamples)
             {
-                info.setTimeInSamples ((int64) (timeInSamples + 0.5));
+                info.setTimeInSamples ((int64) std::round (timeInSamples));
                 info.setTimeInSeconds ((double) (*info.getTimeInSamples()) / audioUnit.getSampleRate());
             };
 
