@@ -125,6 +125,12 @@ else()
         list(APPEND PASSTHROUGH_ARGS "-DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}")
     endif()
 
+    if(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT)
+        list(APPEND PASSTHROUGH_ARGS
+            "-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=${CMAKE_MSVC_DEBUG_INFORMATION_FORMAT}"
+            "-DCMAKE_POLICY_DEFAULT_CMP0141=NEW")
+    endif()
+
     # Looks like we're bootstrapping, reinvoke CMake
     execute_process(COMMAND "${CMAKE_COMMAND}"
             "."
