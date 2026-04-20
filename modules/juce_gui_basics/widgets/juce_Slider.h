@@ -1044,5 +1044,22 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Slider)
 };
 
+class JUCE_API SliderAccessibilityValueInterface : public AccessibilityValueInterface
+{
+public:
+    explicit SliderAccessibilityValueInterface (Slider&);
+    bool isReadOnly() const override;
+    double getCurrentValue() const override;
+    void setValue (double) override;
+    juce::String getCurrentValueAsString() const override;
+    void setValueAsString (const juce::String&) override;
+    AccessibleValueRange getRange() const override;
+
+private:
+    Slider& slider;
+    const bool useMaxValue;
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SliderAccessibilityValueInterface)
+};
+
 
 } // namespace juce

@@ -1773,7 +1773,7 @@ public:
         : AccessibilityHandler (sliderToWrap,
                                 AccessibilityRole::slider,
                                 AccessibilityActions{},
-                                AccessibilityHandler::Interfaces { std::make_unique<ValueInterface> (sliderToWrap) }),
+                                AccessibilityHandler::Interfaces { std::make_unique<SliderAccessibilityValueInterface> (sliderToWrap) }),
           slider (sliderToWrap)
     {
     }
@@ -1781,50 +1781,6 @@ public:
     String getHelp() const override   { return slider.getTooltip(); }
 
 private:
-    class ValueInterface final : public AccessibilityValueInterface
-    {
-    public:
-        explicit ValueInterface (Slider& sliderToWrap)
-            : slider (sliderToWrap),
-              useMaxValue (slider.isTwoValue())
-        {
-        }
-
-        bool isReadOnly() const override  { return false; }
-
-        double getCurrentValue() const override
-        {
-            return useMaxValue ? slider.getMaximum()
-                               : slider.getValue();
-        }
-
-        void setValue (double newValue) override
-        {
-            Slider::ScopedDragNotification drag (slider);
-
-            if (useMaxValue)
-                slider.setMaxValue (newValue, sendNotificationSync);
-            else
-                slider.setValue (newValue, sendNotificationSync);
-        }
-
-        String getCurrentValueAsString() const override          { return slider.getTextFromValue (getCurrentValue()); }
-        void setValueAsString (const String& newValue) override  { setValue (slider.getValueFromText (newValue)); }
-
-        AccessibleValueRange getRange() const override
-        {
-            return { { slider.getMinimum(), slider.getMaximum() },
-                     getStepSize (slider) };
-        }
-
-    private:
-        Slider& slider;
-        const bool useMaxValue;
-
-        //==============================================================================
-        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ValueInterface)
-    };
-
     Slider& slider;
 
     //==============================================================================
@@ -1834,6 +1790,43 @@ private:
 std::unique_ptr<AccessibilityHandler> Slider::createAccessibilityHandler()
 {
     return std::make_unique<SliderAccessibilityHandler> (*this);
+}
+
+SliderAccessibilityValueInterface::SliderAccessibilityValueInterface (Slider& sliderToWrap)
+    : slider (sliderToWrap), useMaxValue (slider.isTwoValue())
+{
+}
+
+bool SliderAccessibilityValueInterface::isReadOnly() const  { return false; }
+
+double SliderAccessibilityValueInterface::getCurrentValue() const
+{
+    return useMaxValue ? slider.getMaximum() : slider.getValue();
+}
+
+void SliderAccessibilityValueInterface::setValue (double newValue)
+{
+    Slider::ScopedDragNotification drag (slider);
+
+    if (useMaxValue)
+        slider.setMaxValue (newValue, sendNotificationSync);
+    else
+        slider.setValue (newValue, sendNotificationSync);
+}
+
+juce::String SliderAccessibilityValueInterface::getCurrentValueAsString() const
+{
+    return slider.getTextFromValue (getCurrentValue());
+}
+
+void SliderAccessibilityValueInterface::setValueAsString (const juce::String& newValue)
+{
+    setValue (slider.getValueFromText (newValue));
+}
+
+AccessibilityNumericValueInterface::AccessibleValueRange SliderAccessibilityValueInterface::getRange() const
+{
+    return { { slider.getMinimum(), slider.getMaximum() }, getStepSize (slider) };
 }
 
 } // namespace juce
