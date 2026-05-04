@@ -47,7 +47,7 @@ static ARA::ARAInterfaceConfiguration createInterfaceConfig (const ARA::ARAFacto
    #if ARA_VALIDATE_API_CALLS
     assertFunction = &::ARA::ARAInterfaceAssert;
     static std::once_flag flag;
-    std::call_once (flag, [] { ARA::ARASetExternalAssertReference (&assertFunction); });
+    //std::call_once (flag, [] { ARA::ARASetExternalAssertReference (&assertFunction); });
    #endif
 
     return makeARASizedStruct (&ARA::ARAInterfaceConfiguration::assertFunctionAddress,
