@@ -662,6 +662,54 @@ using PlaybackRendererInterface = PlaybackRegionRegistry<ARA::ARAPlaybackRendere
 using EditorRendererInterface   = PlaybackRegionRegistry<ARA::ARAEditorRendererRef,   ARA::ARAEditorRendererInterface>;
 
 //==============================================================================
+/** Wrapper class for the ARA editor-view plugin extension interface.
+
+    @tags{ARA}
+*/
+class EditorViewInterface
+{
+public:
+    EditorViewInterface() = default;
+
+    EditorViewInterface (ARA::ARAEditorViewRef editorViewRef,
+                         const ARA::ARAEditorViewInterface* editorViewInterface)
+        : m_editorViewRef (editorViewRef), m_editorViewInterface (editorViewInterface) {}
+
+    /**
+     * Returns true if the underlying ARA plugin extension instance fulfills the editor-view role.
+     */
+    bool isValid() const noexcept { return m_editorViewRef && m_editorViewInterface; }
+
+    /**
+     * Notifies the plugin's editor view of the current host selection.
+     */
+    void notifySelection (const ARA::ARAViewSelection* selection) const
+    {
+        if (!isValid())
+            return;
+
+        m_editorViewInterface->notifySelection (m_editorViewRef, selection);
+    }
+
+    /**
+     * Notify the plugin's editor view of region sequences hidden by the host.
+     * Pass count = 0 and refs = nullptr to indicate that no region sequences are hidden.
+     */
+    void notifyHideRegionSequences (ARA::ARASize count,
+                                    const ARA::ARARegionSequenceRef* refs) const
+    {
+        if (!isValid())
+            return;
+
+        m_editorViewInterface->notifyHideRegionSequences (m_editorViewRef, count, refs);
+    }
+
+private:
+    ARA::ARAEditorViewRef m_editorViewRef = nullptr;
+    const ARA::ARAEditorViewInterface* m_editorViewInterface = nullptr;
+};
+
+//==============================================================================
 /** Wrapper class for `ARA::ARAPlugInExtensionInstance*`.
 
     Returned by ARAHostDocumentController::bindDocumentToPluginInstance(). The corresponding
@@ -705,6 +753,15 @@ public:
         interface was provided by the instance.
      */
     EditorRendererInterface   getEditorRendererInterface() const;
+
+    /** Returns the EditorViewInterface for the extension instance.
+
+        Depending on what roles were passed into
+        ARAHostDocumentController::bindDocumentToPluginInstance() one particular instance may not
+        fulfill a given role. You can use EditorViewInterface::isValid() to see if this
+        interface was provided by the instance.
+     */
+    EditorViewInterface       getEditorViewInterface() const;
 
     /** Returns false if the PlugInExtensionInstance was default constructed and represents
         no binding to an ARAHostDocumentController.
