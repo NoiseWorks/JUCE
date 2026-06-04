@@ -2110,7 +2110,7 @@ struct PopupMenuCompletionCallback final : public ModalComponentManager::Callbac
         }
 
         // (this would be the place to fade out the component, if that's what's required)
-        component.reset();
+        component.deleteAndZero();
 
         if (PopupMenuSettings::menuWasHiddenBecauseOfAppChange)
             return;
@@ -2137,7 +2137,7 @@ struct PopupMenuCompletionCallback final : public ModalComponentManager::Callbac
     }
 
     ApplicationCommandManager* managerOfChosenCommand = nullptr;
-    std::unique_ptr<Component> component;
+    Component::SafePointer<Component> component;
 
     JUCE_DECLARE_NON_COPYABLE (PopupMenuCompletionCallback)
 };
@@ -2151,7 +2151,7 @@ int PopupMenu::showWithOptionalCallback (const Options& options,
 
     if (auto* window = createWindow (options, &(callback->managerOfChosenCommand)))
     {
-        callback->component.reset (window);
+        callback->component = window;
 
         PopupMenuSettings::menuWasHiddenBecauseOfAppChange = false;
 
