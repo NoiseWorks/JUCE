@@ -1114,7 +1114,7 @@ static String readPosixConfigFileValue (const char* file, const char* key)
  #include <crt_externs.h>
  #define JUCE_SPAWN_ENVIRON (*_NSGetEnviron())
 #else
- extern char** environ;
+ extern "C" char** environ;
  #define JUCE_SPAWN_ENVIRON environ
 #endif
 
