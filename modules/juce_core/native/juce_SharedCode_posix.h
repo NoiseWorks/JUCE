@@ -1108,6 +1108,16 @@ static String readPosixConfigFileValue (const char* file, const char* key)
 
 
 //==============================================================================
+#include <spawn.h>
+
+#if JUCE_MAC || JUCE_IOS
+ #include <crt_externs.h>
+ #define JUCE_SPAWN_ENVIRON (*_NSGetEnviron())
+#else
+ extern char** environ;
+ #define JUCE_SPAWN_ENVIRON environ
+#endif
+
 class ChildProcess::ActiveProcess
 {
 public:
@@ -1124,47 +1134,50 @@ public:
 
         if (pipe (pipeHandles) == 0)
         {
-            auto result = fork();
+            // these file actions are applied in the child process..
+            posix_spawn_file_actions_t fileActions;
+            posix_spawn_file_actions_init (&fileActions);
 
-            if (result < 0)
+            posix_spawn_file_actions_addclose (&fileActions, pipeHandles[0]);   // close the read handle
+
+            if ((streamFlags & wantStdOut) != 0)
+                posix_spawn_file_actions_adddup2 (&fileActions, pipeHandles[1], STDOUT_FILENO); // turns the pipe into stdout
+            else
+                posix_spawn_file_actions_addopen (&fileActions, STDOUT_FILENO, "/dev/null", O_WRONLY, 0);
+
+            if ((streamFlags & wantStdErr) != 0)
+                posix_spawn_file_actions_adddup2 (&fileActions, pipeHandles[1], STDERR_FILENO);
+            else
+                posix_spawn_file_actions_addopen (&fileActions, STDERR_FILENO, "/dev/null", O_WRONLY, 0);
+
+            posix_spawn_file_actions_addclose (&fileActions, pipeHandles[1]);
+
+            Array<char*> argv;
+
+            for (auto& arg : arguments)
+                if (arg.isNotEmpty())
+                    argv.add (const_cast<char*> (arg.toRawUTF8()));
+
+            argv.add (nullptr);
+
+            pid_t pid = 0;
+
+            // posix_spawnp searches PATH, matching the previous execvp behaviour
+            auto spawnResult = posix_spawnp (&pid, exe.toRawUTF8(), &fileActions, nullptr, argv.getRawDataPointer(), JUCE_SPAWN_ENVIRON);
+
+            posix_spawn_file_actions_destroy (&fileActions);
+
+            if (spawnResult == 0)
             {
-                close (pipeHandles[0]);
-                close (pipeHandles[1]);
-            }
-            else if (result == 0)
-            {
-                // we're the child process..
-                close (pipeHandles[0]);   // close the read handle
-
-                if ((streamFlags & wantStdOut) != 0)
-                    dup2 (pipeHandles[1], STDOUT_FILENO); // turns the pipe into stdout
-                else
-                    dup2 (open ("/dev/null", O_WRONLY), STDOUT_FILENO);
-
-                if ((streamFlags & wantStdErr) != 0)
-                    dup2 (pipeHandles[1], STDERR_FILENO);
-                else
-                    dup2 (open ("/dev/null", O_WRONLY), STDERR_FILENO);
-
-                close (pipeHandles[1]);
-
-                Array<char*> argv;
-
-                for (auto& arg : arguments)
-                    if (arg.isNotEmpty())
-                        argv.add (const_cast<char*> (arg.toRawUTF8()));
-
-                argv.add (nullptr);
-
-                execvp (exe.toRawUTF8(), argv.getRawDataPointer());
-                _exit (-1);
+                // we're the parent process..
+                childPID = pid;
+                pipeHandle = pipeHandles[0];
+                close (pipeHandles[1]); // close the write handle
             }
             else
             {
-                // we're the parent process..
-                childPID = result;
-                pipeHandle = pipeHandles[0];
-                close (pipeHandles[1]); // close the write handle
+                close (pipeHandles[0]);
+                close (pipeHandles[1]);
             }
         }
     }
